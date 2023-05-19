@@ -1,0 +1,145 @@
+---
+title: "Code_Group16"
+author: "N. Oostrom"
+date: "2022-12-18"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Getting the data ready for use
+
+For our analysis we used OBI4wan to extract Tweets based on the following queries:
+
+Bijlmer: (bijlmer) OR (bims) OR (bimre) OR (bijlmer\*)
+
+Zuidoost: (amsterdam OR adam OR "a'dam" OR damsko) AND (zuidoost OR "zuid-oost" OR "zuid oost")
+
+Since we can only extract up to 5000 Tweets, we needed to extract multiple documents from OBI4wan. We won't be showing that code specifically, since it doesn't add value to understanding how we analysed the Tweets. Instead, we will begin with the ready to use dataset and show how we made them usable for our analysis.
+
+```{r getting the data ready, echo=FALSE}
+library(readr)
+library(dplyr)
+#Acquiring the datasets seperately
+bijlmer=read_csv("C:/Users/noort/OneDrive/VU/Computational Analysis/Project/Data/bijlmer_goed.csv")
+zuidoost= read_csv("C:/Users/noort/OneDrive/VU/Computational Analysis/Project/Data/zuidoost_goed.csv")
+
+#Selecting the only data that we might want to use for our analysis
+df_bijlmer = bijlmer[ ,c("Publicatiedatum","Geplaatst door (optioneel)", "Bericht")]
+df_zuidoost = zuidoost[ ,c("Publicatiedatum","Geplaatst door (optioneel)", "Bericht")]
+#Adding a label for Bijlmer and Zuidoost, which will end up as a covariate
+df_bijlmer$label = "Bijlmer"
+df_zuidoost$label = "Zuidoost"
+
+#Renaming the columns, to make it easier to call the data
+df_bijlmer = df_bijlmer %>%
+  rename(date = Publicatiedatum, user = `Geplaatst door (optioneel)`, text = Bericht)
+df_zuidoost = df_zuidoost %>%
+  rename(date = Publicatiedatum, user = `Geplaatst door (optioneel)`, text = Bericht)
+df = bind_rows(df_bijlmer, df_zuidoost)
+
+#This is what we currently got
+head(df)
+
+```
+
+## Getting the data ready for our model
+
+Now that we only have the data left that we want to use, we can further process this data to make it ready for our model. Since we will be using Structural Topic Modeling (STM), the data needs to be transformed into a corpus, then a document terms matrix in order to end up with a format usable for our STM.
+
+### Concerning the dtm
+
+First of, we removed the punctuation, the numbers and symbols. Then we removed stop words: Words that didn't add any value to the topics. After that, we removed words that occurred too frequently and therefore also didn't any value to our interpretation. The reasoning for removing profiles and links was that we didn't find those words to be adding value when interpreting the results.
+
+### Concerning the formatting
+
+It was needed to edit the docvars and convert the dtm in order to be usable for our STM. The STM needs metadata for the covariates, without this conversion the metadata wasn't usable.
+
+```{r preparing data for our model, echo = FALSE}
+library(quanteda)
+library(tidyverse)
+#Creating the corpus
+corp = df %>%
+  mutate(text = str_remove_all(text, "#")) %>%  #removing the hash tag for conformity
+  corpus(text = "text")
+
+#Adding text as docvars, needed for our meta data later
+docvars(corp)$text = texts(corp)
+
+#Making the dtm
+dtm = corp %>%
+  tokens(remove_punct = T, remove_numbers = T, remove_symbols = T) %>%
+  tokens_remove(stopwords("nl")) %>%
+  tokens_remove(c("bijlmer", "zuidoost", "zuid-oost", "amsterdam", "rt", "@*", "https//www.*"))%>%
+  tokens_select(min_nchar = 3) %>%
+  dfm(tolower= TRUE) %>%
+  dfm_trim(min_docfreq = 10)
+
+#Converting the dtm to stm-format
+out = convert(dtm, to = 'stm')
+
+```
+
+## Using our model
+
+### Finding the right amount of topics
+
+The following code is used for finding the right amount of topics:
+
+topics_amount = searchK(documents = out$documents, vocab = out$vocab, data = out$meta, K = c(6, 8, 10, 12, 14), heldout.seed = 9, content=~ label, N = floor(0.1 * (nrow(out$meta))))
+
+This code will not be used now, since it took 6 hours to run this code. When plotting the variable topics_amount, the following was presented:
+
+![Plotting topics_amount](C:/Users/noort/OneDrive/VU/Computational Analysis/Project/topics_amount.jpg.jpg)
+
+We looked at the highest held-out, and the lowest residuals, hence we ended up with 14 topics.
+
+### Running the model
+
+For demonstration purposes we will be running the model with one iteration. For our actual model, we didn't assign a maximum of iterations, and it ended up using 84 iterations. Therefore, we will import the output of our model that we ended up using.
+
+```{r, fitting to model to our data, echo=FALSE}
+library(stm)
+#How we ran the model
+m = stm(dtm, K = 14, content =~ label, max.em.its = 1)
+
+#Getting the output of the actual model we ran
+m = readRDS("C:/Users/noort/OneDrive/VU/Computational Analysis/Project/Data/model_1.rds")
+
+
+```
+
+## Visualizing the results
+
+The results are visualized in different ways. All these ways have been used to understand and validate our STM. For demonstration purposes, we will only be looking at the results from one topic when the plotting was used for all 14 topics.
+
+```{r, visualizing the results}
+#Top topics: showing the topic proportion of the discourse
+plot(m, type="summary", xlim=c(0,0.3))
+
+#Top terms per label as well as per topic
+topic_10 = labelTopics(m, topics = 10)
+topic_10
+
+#Plotting the results: which words within a topic are more associated with one covariate value versus another
+plot(m, type="perspectives", n = 40, topics= 10, covarlevels = c("Bijlmer", "Zuidoost"), 
+     main = "Verschil wordclouds tussen Bijlmer en Zuidoost",
+     text.cex = 1.5,
+     xlim= 50)
+
+#Plotting a wordcloud
+library(wordcloud)
+cloud(m, topic = 10, scale = c(2, 1.5), max.word= 40)
+
+#Correlations between topics indicate that both topics are likely to be discusses within a document
+correlations = topicCorr(m)
+plot(correlations)
+
+#Finding texts where a specific label talks about a specific topic for validation of the topics
+#The actual amount used was 50 Tweets per topic
+thoughts1 = findThoughts(m, texts=out$meta$text, n=5, topics=10)$docs[[1]]
+head(thoughts1)
+
+```
