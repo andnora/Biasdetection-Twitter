@@ -92,7 +92,7 @@ topics_amount = searchK(documents = out$documents, vocab = out$vocab, data = out
 
 This code will not be used now, since it took 6 hours to run this code. When plotting the variable topics_amount, the following was presented:
 
-![Plotting topics_amount](C:/Users/noort/OneDrive/VU/Computational Analysis/Project/topics_amount.jpg.jpg)
+![Plotting topics_amount](C:/Users/LOCATION/topics_amount.jpg.jpg)
 
 We looked at the highest held-out, and the lowest residuals, hence we ended up with 14 topics.
 
@@ -106,7 +106,7 @@ library(stm)
 m = stm(dtm, K = 14, content =~ label, max.em.its = 1)
 
 #Getting the output of the actual model we ran
-m = readRDS("C:/Users/noort/OneDrive/VU/Computational Analysis/Project/Data/model_1.rds")
+m = readRDS("C:/LOCATION/model_1.rds")
 
 
 ```
