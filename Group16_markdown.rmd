@@ -23,8 +23,8 @@ Since we can only extract up to 5000 Tweets, we needed to extract multiple docum
 library(readr)
 library(dplyr)
 #Acquiring the datasets seperately
-bijlmer=read_csv("C:/Users/noort/OneDrive/VU/Computational Analysis/Project/Data/bijlmer_goed.csv")
-zuidoost= read_csv("C:/Users/noort/OneDrive/VU/Computational Analysis/Project/Data/zuidoost_goed.csv")
+bijlmer=read_csv("C:/LOCATION/bijlmer_goed.csv")
+zuidoost= read_csv("C:/LOCATION/zuidoost_goed.csv")
 
 #Selecting the only data that we might want to use for our analysis
 df_bijlmer = bijlmer[ ,c("Publicatiedatum","Geplaatst door (optioneel)", "Bericht")]
